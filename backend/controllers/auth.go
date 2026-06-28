@@ -27,7 +27,7 @@ func Login(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := config.DB.Where("username = ?", input.Username).First(&user).Error; err != nil {
+	if err := config.DB.Where("BINARY username = ?", input.Username).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Username atau password salah"})
 		return
 	}
