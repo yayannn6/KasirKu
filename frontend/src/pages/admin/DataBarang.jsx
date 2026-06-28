@@ -344,14 +344,14 @@ export default function DataBarang() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Kode Produk
-                <span className="ml-2 text-xs text-gray-400 font-normal">(kosongkan untuk auto-generate)</span>
+                <span className="ml-2 text-xs text-gray-400 font-normal">(opsional, harus unik)</span>
               </label>
               <input
                 type="text"
                 value={form.code}
                 onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono"
-                placeholder={editItem ? editItem.code : 'Contoh: BRG-001'}
+                placeholder="Contoh: BRG-001"
               />
             </div>
             <div>

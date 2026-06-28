@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"math"
 	"net/http"
 	"strconv"
@@ -21,40 +20,30 @@ type ProductInput struct {
 	Category  string `json:"category"`
 }
 
-// generateProductCode membuat kode unik BRG-XXX berdasarkan jumlah produk (termasuk arsip)
-func generateProductCode() string {
-	var count int64
-	config.DB.Unscoped().Model(&models.Product{}).Count(&count)
-	for {
-		code := fmt.Sprintf("BRG-%03d", count+1)
-		var existing models.Product
-		if err := config.DB.Unscoped().Where("code = ?", code).First(&existing).Error; err != nil {
-			return code // kode belum dipakai
-		}
-		count++
+// nullableCode: string kosong → nil (NULL di DB), string berisi → pointer
+func nullableCode(s string) *string {
+	if s == "" {
+		return nil
 	}
+	return &s
 }
 
 func GetProducts(c *gin.Context) {
 	var products []models.Product
 	query := config.DB
 
-	// Search: nama atau kode produk
 	if search := c.Query("search"); search != "" {
 		query = query.Where("name LIKE ? OR code LIKE ?", "%"+search+"%", "%"+search+"%")
 	}
 
-	// Admin bisa lihat arsip
 	if c.Query("include_deleted") == "true" {
 		query = query.Unscoped()
 	}
 
-	// Kasir hanya lihat produk stok > 0
 	if role, exists := c.Get("role"); exists && role == "kasir" {
 		query = query.Where("stock > 0")
 	}
 
-	// Pagination
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	if page < 1 {
@@ -95,14 +84,12 @@ func CreateProduct(c *gin.Context) {
 		return
 	}
 
-	// Auto-generate kode jika kosong
-	code := input.Code
-	if code == "" {
-		code = generateProductCode()
-	} else {
-		// Cek duplikat kode manual
+	code := nullableCode(input.Code)
+
+	// Cek duplikat kode jika diisi
+	if code != nil {
 		var existing models.Product
-		if err := config.DB.Unscoped().Where("code = ?", code).First(&existing).Error; err == nil {
+		if err := config.DB.Unscoped().Where("code = ?", *code).First(&existing).Error; err == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Kode produk sudah digunakan"})
 			return
 		}
@@ -138,25 +125,30 @@ func UpdateProduct(c *gin.Context) {
 		return
 	}
 
-	// Validasi kode jika diubah
-	newCode := input.Code
-	if newCode == "" {
-		newCode = product.Code // tetap pakai kode lama
-	} else if newCode != product.Code {
-		var existing models.Product
-		if err := config.DB.Unscoped().Where("code = ? AND id_products != ?", newCode, product.ID).First(&existing).Error; err == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Kode produk sudah digunakan"})
-			return
+	newCode := nullableCode(input.Code)
+
+	// Cek duplikat kode jika diisi dan berbeda dari sebelumnya
+	if newCode != nil {
+		oldCode := ""
+		if product.Code != nil {
+			oldCode = *product.Code
+		}
+		if *newCode != oldCode {
+			var existing models.Product
+			if err := config.DB.Unscoped().Where("code = ? AND id_products != ?", *newCode, product.ID).First(&existing).Error; err == nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Kode produk sudah digunakan"})
+				return
+			}
 		}
 	}
 
-	config.DB.Model(&product).Updates(models.Product{
-		Code:      newCode,
-		Name:      input.Name,
-		BuyPrice:  input.BuyPrice,
-		SellPrice: input.SellPrice,
-		Stock:     input.Stock,
-		Category:  input.Category,
+	config.DB.Model(&product).Updates(map[string]interface{}{
+		"code":       newCode,
+		"name":       input.Name,
+		"buy_price":  input.BuyPrice,
+		"sell_price": input.SellPrice,
+		"stock":      input.Stock,
+		"category":   input.Category,
 	})
 
 	c.JSON(http.StatusOK, gin.H{"message": "Barang berhasil diperbarui", "data": product})

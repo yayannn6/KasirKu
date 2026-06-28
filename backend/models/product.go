@@ -8,7 +8,7 @@ import (
 
 type Product struct {
 	ID        uint           `json:"id_products" gorm:"primaryKey;autoIncrement;column:id_products"`
-	Code      string         `json:"code" gorm:"uniqueIndex;not null;column:code"`
+	Code      *string        `json:"code" gorm:"uniqueIndex;column:code"`
 	Name      string         `json:"name" gorm:"not null"`
 	BuyPrice  int64          `json:"buy_price" gorm:"not null;default:0"`
 	SellPrice int64          `json:"sell_price" gorm:"not null;default:0"`
