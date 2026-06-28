@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 	"time"
 
 	"kasirku/config"
@@ -115,8 +117,7 @@ func CreateTransaction(c *gin.Context) {
 }
 
 func GetTransactions(c *gin.Context) {
-	var transactions []models.Transaction
-	query := config.DB.Preload("Cashier")
+	query := config.DB.Model(&models.Transaction{}).Preload("Cashier")
 
 	role, _ := c.Get("role")
 	if role == "kasir" {
@@ -128,8 +129,30 @@ func GetTransactions(c *gin.Context) {
 		query = query.Where("DATE(created_at) = ?", date)
 	}
 
-	query.Order("created_at DESC").Find(&transactions)
-	c.JSON(http.StatusOK, gin.H{"data": transactions, "total": len(transactions)})
+	// Pagination
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	var total int64
+	query.Count(&total)
+
+	var transactions []models.Transaction
+	query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&transactions)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":        transactions,
+		"total":       total,
+		"page":        page,
+		"limit":       limit,
+		"total_pages": int(math.Ceil(float64(total) / float64(limit))),
+	})
 }
 
 func GetTransaction(c *gin.Context) {

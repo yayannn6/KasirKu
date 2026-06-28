@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../../api/axios'
 import { printReceipt } from '../../utils/printReceipt'
+import Pagination from '../../components/Pagination'
 
 const formatRupiah = (n) => 'Rp ' + Number(n).toLocaleString('id-ID')
 const formatDate = (s) => new Date(s).toLocaleString('id-ID', {
@@ -103,18 +104,25 @@ export default function AdminRiwayatTransaksi() {
   const [date, setDate] = useState('')
   const [loading, setLoading] = useState(true)
   const [detailData, setDetailData] = useState(null)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const limit = 10
 
-  const fetchTrx = async () => {
+  const fetchTrx = async (p = page) => {
     setLoading(true)
     try {
-      const res = await api.get('/transactions', { params: { date } })
+      const res = await api.get('/transactions', { params: { date, page: p, limit } })
       setTransactions(res.data.data || [])
+      setTotal(res.data.total || 0)
+      setTotalPages(res.data.total_pages || 1)
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { fetchTrx() }, [date])
+  useEffect(() => { setPage(1); fetchTrx(1) }, [date])
+  useEffect(() => { fetchTrx(page) }, [page])
 
   const openDetail = async (id_transactions) => {
     const res = await api.get(`/transactions/${id_transactions}`)
@@ -144,56 +152,63 @@ export default function AdminRiwayatTransaksi() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200">
-        <div className="p-4 border-b border-gray-100">
-          <span className="font-semibold text-gray-700 text-sm">Daftar Transaksi ({transactions.length})</span>
+        <div className="p-4 border-b border-gray-100 flex justify-between items-center">
+          <span className="font-semibold text-gray-700 text-sm">
+            Daftar Transaksi
+            <span className="ml-2 text-gray-400 font-normal">({total} transaksi)</span>
+          </span>
+          <span className="text-xs text-gray-400">Hal. {page} / {totalPages}</span>
         </div>
         {loading ? (
           <div className="p-8 text-center text-gray-400">Memuat...</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500 border-b border-gray-100">
-                <th className="px-4 py-3 font-medium">No</th>
-                <th className="px-4 py-3 font-medium">Nomor Transaksi</th>
-                <th className="px-4 py-3 font-medium">Tanggal</th>
-                <th className="px-4 py-3 font-medium">Kasir</th>
-                <th className="px-4 py-3 font-medium">Pembayaran</th>
-                <th className="px-4 py-3 font-medium">Total</th>
-                <th className="px-4 py-3 font-medium">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map((t, i) => (
-                <tr key={t.id_transactions} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-500">{i + 1}</td>
-                  <td className="px-4 py-3 font-medium text-blue-600">{t.transaction_number}</td>
-                  <td className="px-4 py-3 text-gray-600">{formatDate(t.created_at)}</td>
-                  <td className="px-4 py-3 text-gray-600">{t.cashier?.name || '-'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      t.payment_method === 'cash' ? 'bg-green-100 text-green-700' :
-                      t.payment_method === 'qris' ? 'bg-purple-100 text-purple-700' :
-                      'bg-blue-100 text-blue-700'
-                    }`}>
-                      {paymentLabel[t.payment_method] || t.payment_method}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{formatRupiah(t.total)}</td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => openDetail(t.id_transactions)}
-                      className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1"
-                    >
-                      👁️ Detail
-                    </button>
-                  </td>
+          <>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-100">
+                  <th className="px-4 py-3 font-medium">No</th>
+                  <th className="px-4 py-3 font-medium">Nomor Transaksi</th>
+                  <th className="px-4 py-3 font-medium">Tanggal</th>
+                  <th className="px-4 py-3 font-medium">Kasir</th>
+                  <th className="px-4 py-3 font-medium">Pembayaran</th>
+                  <th className="px-4 py-3 font-medium">Total</th>
+                  <th className="px-4 py-3 font-medium">Aksi</th>
                 </tr>
-              ))}
-              {transactions.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Tidak ada transaksi</td></tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {transactions.map((t, i) => (
+                  <tr key={t.id_transactions} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-400 text-xs">{(page - 1) * limit + i + 1}</td>
+                    <td className="px-4 py-3 font-medium text-blue-600">{t.transaction_number}</td>
+                    <td className="px-4 py-3 text-gray-600">{formatDate(t.created_at)}</td>
+                    <td className="px-4 py-3 text-gray-600">{t.cashier?.name || '-'}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        t.payment_method === 'cash' ? 'bg-green-100 text-green-700' :
+                        t.payment_method === 'qris' ? 'bg-purple-100 text-purple-700' :
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {paymentLabel[t.payment_method] || t.payment_method}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-gray-800">{formatRupiah(t.total)}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => openDetail(t.id_transactions)}
+                        className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1"
+                      >
+                        👁️ Detail
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {transactions.length === 0 && (
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Tidak ada transaksi</td></tr>
+                )}
+              </tbody>
+            </table>
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+          </>
         )}
       </div>
 
